@@ -23,7 +23,7 @@ sub register {
 	$app->plugins->add_hook(after_dispatch => sub {
 		my ($self, $c) = @_;
 		
-		if ($c->stash('xml')) {
+		if ($c->stash('xml') && $c->res->code == 200) {
 			$c->stash(format => 'xml');
 			$c->res->headers->content_type( $app->types->type('xml') );
 
