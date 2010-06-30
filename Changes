@@ -1,5 +1,10 @@
 Revision history for Mojolicious-Plugin-JsonToXml
 
+0.03   2010-06-30/14:27
+	* add __root, __node and clean json and xml
+	* add conf status (spleenjack)
+	* more tests and documentation
+	
 0.02   2010-06-29/12:38
 	Documentation and dist
 

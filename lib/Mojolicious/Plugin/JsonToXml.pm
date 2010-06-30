@@ -5,7 +5,7 @@ use warnings;
 
 use base 'Mojolicious::Plugin';
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 sub register {
 	my ($self, $app, $conf) = @_;
@@ -23,18 +23,26 @@ sub register {
 	$app->plugins->add_hook(after_dispatch => sub {
 		my ($self, $c) = @_;
 		
-		if ($c->stash('xml') && $c->res->code == 200) {
+		return if $conf->{status} && $c->res->code != $conf->{status};
+		
+		if ($c->stash('xml')) {
 			$c->stash(format => 'xml');
 			$c->res->headers->content_type( $app->types->type('xml') );
 
 			$c->res->body( json2xml($c->res->body) );
+		}
+		elsif ($c->stash(format => 'json')) {
+			my $body = $c->res->body;
+			
+			$body =~ s/"__[^"]+":.*?[,}]//sg;
+			
+			$c->res->body( $body );
 		}
 	});
 }
 
 sub json2xml {
 	my $json = shift;
-	my $conf = shift;
 	
 	my $data = $json ? Mojo::JSON->new->decode( $json ) : undef;
 	my $xml  = qq(<?xml version="1.0" encoding="UTF-8"?>\n); # XXX: charset
@@ -42,7 +50,7 @@ sub json2xml {
 	unless ($data) {
 		$xml .= qq(<empty />\n);
 	} else {
-		$xml .= _xml( $data => 1 ) . qq(\n);
+		$xml .= _xml( $data, 'start' ) . qq(\n);
 	}
 	
 	return $xml;
@@ -54,12 +62,17 @@ sub _xml {
 	
 	my $t = '';
 	if (ref $data eq 'HASH') {
-		$t .= "<$_>" . _xml($data->{$_}) . "</$_>" for sort keys %$data;
+		$t .= "<$_>" . _xml($data->{$_}) . "</$_>" for sort grep { !/^__/ } keys %$data;
 	}
 	elsif (ref $data eq 'ARRAY') {
-		$t .= '<list>' if $flag;
-		$t .= '<item>' ._xml($_) . '</item>' for @$data;
-		$t .= '</list>' if $flag;
+		my $tag = {
+			root => ref $data->[0] eq 'HASH' && $data->[0]->{__root} ? delete($data->[0]->{__root}) : 'list',
+			node => ref $data->[0] eq 'HASH' && $data->[0]->{__node} ? delete($data->[0]->{__node}) : 'item',
+		};
+		
+		$t .= "<$tag->{root}>" if $flag;
+		$t .= "<$tag->{node}>" ._xml($_) . "</$tag->{node}>" for @$data;
+		$t .= "</$tag->{root}>" if $flag;
 	}
 	else {
 		$t .= Mojo::ByteStream->new($data)->xml_escape;
@@ -84,15 +97,48 @@ Mojolicious::Plugin::JsonToXml - JSON to XML Mojolicious Plugin
 	# Mojolicious::Lite
 	plugin 'json_to_xml';
 	
+	# or
+	plugin 'json_to_xml', { status => 200 }; # JSON to XML only 200 status code
+
+Simple:
+ 
 	get '/test.json' => sub { shift->render_json({ response => 'ok' }) };
+	
+	# /test.json : {"response": "ok"}
+	# /test.xml  :
+	<?xml version="1.0" encoding="UTF-8"?>
+	<response>ok</response>
 
+List:
 
-Check urls: /test.json, /test.xml
+	get '/list.json' => sub { shift->render_json([1, 2, 3]) };
+	
+	# /list.json : [1,2,3]
+	# /list.xml  :
+	<?xml version="1.0" encoding="UTF-8"?>
+	<list><item>1</item><item>2</item><item>3</item></list>
+
+Tags:
+	
+	get '/tags.json' => sub { shift->render_json({
+		tests => [
+			{ id => 1, title => 'JSON & XML', __node => 'test' },
+			{ id => 2, title => 'JSON > XML', },
+		]
+	}) };
+	
+	# /tags.json : {"tests":[{"id":1},{"id":2}]}
+	# /tags.xml  :
+	<?xml version="1.0" encoding="UTF-8"?>
+	<tests>
+		<test><id>1</id><title>JSON &amp; XML</title></test>
+		<test><id>2</id><title>JSON &gt; XML</title></test>
+	</tests>
 
 =head1 DESCRIPTION
 
 L<Mojolicous::Plugin::JsonToXml> is a plugin to easily use XML format if exists JSON format.
-Automation render JSON data to XML data
+Automatiс render JSON to XML data
 
 =head1 METHODS
 
