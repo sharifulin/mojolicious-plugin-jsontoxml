@@ -5,7 +5,7 @@ use warnings;
 
 use base 'Mojolicious::Plugin';
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 sub register {
 	my ($self, $app, $conf) = @_;
@@ -13,7 +13,9 @@ sub register {
 	$app->plugins->add_hook(after_static_dispatch => sub {
 		my ($self, $c) = @_;
 		my $url = $c->req->url;
-
+		
+		return if grep { /^\(\?/ ? $url =~ /^$_$/ : $url eq $_ } @{$conf->{exclude}||[]};
+		
 		if ($url =~ s/\.xml\b/\.json/) {
 			$c->req->url( Mojo::URL->new($url) );
 			$c->stash(xml => 1);
@@ -99,6 +101,11 @@ Mojolicious::Plugin::JsonToXml - JSON to XML Mojolicious Plugin
 	
 	# or
 	plugin 'json_to_xml', { status => 200 }; # JSON to XML only 200 status code
+	
+	# or
+	plugin 'json_to_xml', {
+		exclude => [ qr{/no\.xml}, '/no2.xml' ] # Exclude urls
+	};
 
 Simple:
  

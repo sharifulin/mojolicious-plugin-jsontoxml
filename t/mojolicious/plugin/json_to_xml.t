@@ -2,7 +2,9 @@
 use lib qw(lib /tk/mojo/lib); # XXX
 use Mojolicious::Lite;
 
-plugin 'json_to_xml';
+plugin 'json_to_xml', {
+	exclude => [ qr{/no\.xml}, '/no2.xml' ]
+};
 
 get '/test.json' => sub { shift->render_json({ response => 'ok' }) };
 
@@ -22,9 +24,13 @@ get '/error.json' => sub {
 	$self->render_json({ error => 'not found' });
 };
 
+get '/no.xml' => { text => qq(<?xml version="1.0" encoding="UTF-8"?>\n<no />) };
+
+get '/no2.xml' => { text => qq(<?xml version="1.0" encoding="UTF-8"?>\n<no2 />) };
+
 app->log->level('error');
 
-use Test::More tests => 22;
+use Test::More tests => 28;
 use Test::Mojo;
 
 my $t = Test::Mojo->new;
@@ -76,6 +82,16 @@ $t->get_ok('/error.json')
 $t->get_ok('/error.xml')
 	->status_is(404)
 	->content_is(qq(<?xml version="1.0" encoding="UTF-8"?>\n<error>not found</error>\n), 'error xml')
+;
+
+$t->get_ok('/no.xml')
+	->status_is(200)
+	->content_is(qq(<?xml version="1.0" encoding="UTF-8"?>\n<no />), 'exclude xml')
+;
+
+$t->get_ok('/no2.xml')
+	->status_is(200)
+	->content_is(qq(<?xml version="1.0" encoding="UTF-8"?>\n<no2 />), 'exclude xml 2')
 ;
 
 #

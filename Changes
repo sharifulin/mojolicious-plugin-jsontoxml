@@ -1,5 +1,8 @@
 Revision history for Mojolicious-Plugin-JsonToXml
 
+0.04   2010-06-20/14:44
+	* add exclude to plugin config
+
 0.03   2010-06-30/14:27
 	* add __root, __node and clean json and xml
 	* add conf status (spleenjack)
